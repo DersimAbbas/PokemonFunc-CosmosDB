@@ -1,0 +1,15 @@
+{
+  "profiles": {
+    "AzureLabb3": {
+      "commandName": "Project",
+      "commandLineArgs": "--port 7049"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker",
+      "launchUrl": "{Scheme}://{ServiceHost}:{ServicePort}",
+      "containerRunArguments": "--init",
+      "httpPort": 32216,
+      "useSSL": false
+    }
+  }
+}
