@@ -9,11 +9,14 @@ using System.Threading.Tasks;
 namespace AzureLabb3.Models
 {
     [BsonIgnoreExtraElements]
-    public class Pokemon
+    public class Pokemon : IHasPokemonId
     {
         [BsonId]
         [BsonRepresentation(BsonType.ObjectId)]
         public string Id { get; set; }
+
+        [BsonElement("pokemonId")]
+        public int pokemonId { get; set; }
 
         [BsonElement("name")]
         public string Name { get; set; }
