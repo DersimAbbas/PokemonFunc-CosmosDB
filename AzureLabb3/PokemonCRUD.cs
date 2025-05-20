@@ -10,51 +10,15 @@ using MongoDB.Driver;
 
 namespace AzureLabb3
 {
-    public class CreatePokemon
+    public class PokemonCRUD
     {
-        private readonly ILogger<CreatePokemon> _logger;
+        private readonly ILogger<PokemonCRUD> _logger;
         private readonly CosmosRepository _repo;
 
-        public CreatePokemon(ILogger<CreatePokemon> logger, CosmosRepository repo)
+        public PokemonCRUD(ILogger<PokemonCRUD> logger, CosmosRepository repo)
         {
             _logger = logger;
             _repo = repo;
-        }
-
-        [Function("CreatePokemon")]
-        public async Task CreatePokemonRun(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = "Pokemon")]
-                HttpRequest req,
-            string name,
-            string type,
-            int level
-        )
-        {
-            _logger.LogInformation("Creating a new pokemon..");
-
-            Pokemon pokemon = new Pokemon
-            {
-                pokemonId = await _repo.GetNextPokemonIdAsync(),
-                Name = name,
-                Type = type,
-                Level = level,
-            };
-            var newPokemon = await _repo.AddAsync("Pokemon", pokemon);
-
-            if (pokemon != null)
-            {
-                var response = req.HttpContext.Response;
-                response.StatusCode = StatusCodes.Status201Created;
-                await response.WriteAsJsonAsync(newPokemon);
-                _logger.LogInformation($"Pokemon created: {pokemon.Name}");
-            }
-            else
-            {
-                var response = req.HttpContext.Response;
-                response.StatusCode = StatusCodes.Status500InternalServerError;
-                await response.WriteAsJsonAsync(new { message = "Failed to create Pokemon" });
-                _logger.LogError("Failed to create Pokemon");
-            }
         }
 
         [Function("GetAllPokemons")]
@@ -80,7 +44,7 @@ namespace AzureLabb3
 
         [Function("GetPokemonById")]
         public async Task<Pokemon?> GetPokemonByIdRun(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "Pokemon/{id}")]
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "Pokemon/get/{id}")]
                 HttpRequest req,
             int id
         )
@@ -101,39 +65,46 @@ namespace AzureLabb3
         }
 
         [Function("UpdatePokemon")]
-        public async Task<Pokemon?> UpdatePokemonRun(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "put", Route = "updatePokemon/{id}")]
+        public async Task Run(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "put", Route = "pokemon/update/{id}")]
                 HttpRequest req,
             int id,
-            string name,
-            string type,
-            int level
+            string statname,
+            int statvalue
         )
         {
-            _logger.LogInformation($"Updating pokemon with id: {id}");
-            var existingPokemon = await _repo.GetByIdAsync<Pokemon>("Pokemon", id);
-            if (existingPokemon == null)
+            _logger.LogInformation(
+                $"UpdatePokemonStat invoked for ID={id}, stat={statname}, value={statvalue}"
+            );
+
+            var pokemon = await _repo.GetByIdAsync<Pokemon>("Pokemon", id);
+            if (pokemon == null)
             {
-                _logger.LogError($"Pokemon with id {id} not found");
-                var nullResponse = req.HttpContext.Response;
-                nullResponse.StatusCode = StatusCodes.Status404NotFound;
-                await nullResponse.WriteAsJsonAsync(new { message = "Pokemon not found" });
+                req.HttpContext.Response.StatusCode = StatusCodes.Status404NotFound;
+                await req.HttpContext.Response.WriteAsJsonAsync(
+                    new { message = $"Pokemon with id={id} not found" }
+                );
+                return;
             }
 
-            Pokemon updatedPokemon = new Pokemon
+            var entry = pokemon.Stats.FirstOrDefault(s =>
+                string.Equals(s.Stat.Name, statname, StringComparison.OrdinalIgnoreCase)
+            );
+            if (entry == null)
             {
-                Id = existingPokemon.Id,
-                pokemonId = existingPokemon.pokemonId,
-                Name = name,
-                Type = type,
-                Level = level,
-            };
+                req.HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+                await req.HttpContext.Response.WriteAsJsonAsync(
+                    new { message = $"Stat '{statname}' not found on this Pokémon" }
+                );
+                return;
+            }
 
-            var result = await _repo.UpdateAsync<Pokemon>("Pokemon", id, updatedPokemon);
-            var response = req.HttpContext.Response;
-            response.StatusCode = StatusCodes.Status200OK;
-            await response.WriteAsJsonAsync(result);
-            return result;
+            entry.BaseStat = statvalue;
+
+            var updated = await _repo.UpdateAsync<Pokemon>("Pokemon", id, pokemon);
+
+            req.HttpContext.Response.StatusCode = StatusCodes.Status200OK;
+            await req.HttpContext.Response.WriteAsJsonAsync(updated);
         }
 
         [Function("DeletePokemon")]
@@ -142,7 +113,7 @@ namespace AzureLabb3
                 AuthorizationLevel.Anonymous,
                 "get",
                 "delete",
-                Route = "deletePokemon/{id}"
+                Route = "pokemon/delete/{id}"
             )]
                 HttpRequest req,
             int id

@@ -5,7 +5,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 var builder = FunctionsApplication.CreateBuilder(args);
-
 builder.ConfigureFunctionsWebApplication();
 var conn = builder.Configuration
     .GetConnectionString("cosmosDB")
@@ -14,4 +13,5 @@ builder.Services.AddScoped<CosmosRepository>(_ => new CosmosRepository(
     connectionString: conn,
     databaseName: "PokemonDB"
 ));
+builder.Services.AddHttpClient();
 builder.Build().Run();
